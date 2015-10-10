@@ -53,6 +53,8 @@ class WebCrawlerManager(val baseUrl: String) {
     val domain = url.substring(0, url.lastIndexOf("/") + 1)
     if(!(pageContents == null)) {
       LinkHelper.processLinks(LinkHelper.getLinks(pageContents), domain, linkMap, domainLimit)
+      // TODO Exact and near duplicates detection - Prabhu
+      // TODO Language recognition; Search term frequency - Ivo
       println("Number of links: " + linkMap.size)
     }
   }

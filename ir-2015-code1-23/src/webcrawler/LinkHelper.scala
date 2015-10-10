@@ -43,8 +43,7 @@ object LinkHelper {
       val response = in.getLines().mkString
       in.close()
       response
-    }
-    catch {
+    } catch {
       case e: Exception => null
     }
   }
