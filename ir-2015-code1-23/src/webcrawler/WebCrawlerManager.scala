@@ -2,11 +2,22 @@ package webcrawler
 
 import scala.collection.mutable.{Map => MutMap}
 
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+
 class WebCrawlerManager(val baseUrl: String) {
   // A map that contains all of the links on the frontier
   var linkMap : MutMap[String,Boolean] = null
   // A variable that denotes the domain limit which should not be leaved
   var domainLimit = ""
+  // A term to be matched. In this case 'student'
+  private val term = "(?<=^|\\s)student(?=\\s|$)".r
+  // A counter variable for the term 'student'
+  private var studentCount = 0
+  // A counter for the number of pages in English
+  private var englishCount = 0
+  // A counter for valid links
+  private var validLinksCount = 0
 
   /**
    * This is the entry point of the Crawler. The
@@ -16,8 +27,8 @@ class WebCrawlerManager(val baseUrl: String) {
   def run() {
     val domain = LinkHelper.splitURL(baseUrl)
     domainLimit = domain.substring(0, domain.lastIndexOf("www"))
-    println("base domain: " + domain)
-    println("base domainLimit: " + domainLimit)
+    //println("base domain: " + domain)
+    //println("base domainLimit: " + domainLimit)
 
     linkMap = MutMap[String, Boolean]()
     linkMap += baseUrl -> false
@@ -38,7 +49,10 @@ class WebCrawlerManager(val baseUrl: String) {
       nextLink = linkMap.find(!_._2).orNull
     }
 
-    println("CRAWLER FINISHED")
+    println("Distinct URLs found: " + linkMap.size)
+    println("Visited pages: " + validLinksCount)
+    println("Unique English pages found: " + englishCount)
+    println("Term frequency of \"student\": " + studentCount)
   }
 
   /**
@@ -48,14 +62,26 @@ class WebCrawlerManager(val baseUrl: String) {
    */
   private def crawl(url : String) {
     linkMap(url) = true
-    println("Current link: " + url)
+    // println("Current link: " + url)
     val pageContents = LinkHelper.readUrlContent(url)
     val domain = url.substring(0, url.lastIndexOf("/") + 1)
     if(!(pageContents == null)) {
+      validLinksCount += 1
       LinkHelper.processLinks(LinkHelper.getLinks(pageContents), domain, linkMap, domainLimit)
-      // TODO Exact and near duplicates detection - Prabhu
-      // TODO Language recognition; Search term frequency - Ivo
-      println("Number of links: " + linkMap.size)
+      val doc: Document = Jsoup.parse(pageContents)
+      val section = doc.getElementsByTag("section")
+      section.select("nav").remove()
+      section.select("aside").remove()
+
+      val relevantContent = section.text()
+      val nonDuplicate = true// TODO Exact and near duplicates detection - Prabhu
+      if(nonDuplicate)
+      {
+        studentCount += term.findAllMatchIn(relevantContent.toLowerCase).length
+        if(LanguageRecognizer.recognize(relevantContent) == "en")
+          englishCount += 1
+      }
+      // println("Number of links: " + linkMap.size)
     }
   }
 
