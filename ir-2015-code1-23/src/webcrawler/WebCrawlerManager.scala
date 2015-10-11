@@ -1,9 +1,11 @@
 package webcrawler
 
-import scala.collection.mutable.{Map => MutMap}
+import scala.collection.mutable.{Map => MutMap, MutableList}
 
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+
+import scala.util.control.Breaks._
 
 class WebCrawlerManager(val baseUrl: String) {
   // A map that contains all of the links on the frontier
@@ -19,6 +21,10 @@ class WebCrawlerManager(val baseUrl: String) {
   // A counter for valid links
   private var validLinksCount = 0
 
+  private var fingerprints: MutableList[String] = null
+  private var exact_dup_counter = 0
+  private var near_dup_counter = 0
+
   /**
    * This is the entry point of the Crawler. The
    * method takes care of the necessary initialization
@@ -32,6 +38,8 @@ class WebCrawlerManager(val baseUrl: String) {
 
     linkMap = MutMap[String, Boolean]()
     linkMap += baseUrl -> false
+
+    fingerprints = MutableList[String]()
 
     time {this.crawlEntry()}
   }
@@ -50,8 +58,10 @@ class WebCrawlerManager(val baseUrl: String) {
     }
 
     println("Distinct URLs found: " + linkMap.size)
+    println("Exact duplicates found: " + exact_dup_counter)
     println("Visited pages: " + validLinksCount)
     println("Unique English pages found: " + englishCount)
+    println("Near Duplicates found: " + near_dup_counter)
     println("Term frequency of \"student\": " + studentCount)
   }
 
@@ -74,7 +84,10 @@ class WebCrawlerManager(val baseUrl: String) {
       section.select("aside").remove()
 
       val relevantContent = section.text()
-      val nonDuplicate = true// TODO Exact and near duplicates detection - Prabhu
+
+      // TODO Exact and near duplicates detection - Prabhu
+      val nonDuplicate = DuplicateFinder.analyse(relevantContent)
+
       if(nonDuplicate)
       {
         studentCount += term.findAllMatchIn(relevantContent.toLowerCase).length
@@ -83,6 +96,7 @@ class WebCrawlerManager(val baseUrl: String) {
       }
       // println("Number of links: " + linkMap.size)
     }
+
   }
 
   /**
@@ -98,5 +112,64 @@ class WebCrawlerManager(val baseUrl: String) {
     val t1 = System.nanoTime
     println("Elapsed time: " + (t1 - t0) / 1000000000.0 + "s")
     result
+  }
+
+
+
+  object DuplicateFinder {
+
+    def analyse(relevantContent : String): Boolean =
+    {
+      var Addflag = true
+
+      val tokens = relevantContent.split("[ .,;:?!\t\n\r\f]+").toList
+      val shingles = tokens.sliding(3)
+      val hashes = shingles.map(_.hashCode())
+      def binary(value: Int) : String = String.format("%32s", Integer.toBinaryString(value))
+        .replace(' ', '0')
+      val hmap = hashes.map(h => binary(h))
+      var sum = (for(i <- 1 to 32) yield 0).toList
+
+      var length = 0
+      hmap.foreach(s => {sum=add(sum,s); length = length+1})
+      val finprint = sum.map(x => if(length/2 <= x) 1 else 0).toString()
+
+      breakable {
+        for (x <- fingerprints) {
+          val dis = hammingDistance(x, finprint)
+          if (dis <= 2) {
+            if (dis != 0)
+              near_dup_counter = near_dup_counter + 1
+            else {
+              Addflag = false
+              exact_dup_counter = exact_dup_counter + 1
+              break
+            }
+          }
+        }
+      }
+
+      if(Addflag) {
+        fingerprints += finprint
+      }
+
+      return Addflag
+    }
+
+    def add(sum:List[Int], s: String): List[Int] = {
+      val charlist = s.toList
+      return for( (x,y) <- (sum zip charlist)) yield if(y =='0') x else x+1
+
+    }
+
+    def hammingDistance(x: String, y:String): Int =
+    {
+      val xChar = x.toList
+      val yChar = y.toList
+      var count = 0
+      for((i,j) <- xChar zip yChar) if(i!=j) count = count+1
+      return count
+    }
+
   }
 }
