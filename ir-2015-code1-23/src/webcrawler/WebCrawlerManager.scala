@@ -20,9 +20,11 @@ class WebCrawlerManager(val baseUrl: String) {
   private var englishCount = 0
   // A counter for valid links
   private var validLinksCount = 0
-
+  // A List containing the fingerprint of each non-duplicate document
   private var fingerprints: MutableList[String] = null
+  // A counter for exact Duplicates
   private var exact_dup_counter = 0
+  //A counter for near duplicates
   private var near_dup_counter = 0
 
   /**
@@ -85,7 +87,7 @@ class WebCrawlerManager(val baseUrl: String) {
 
       val relevantContent = section.text()
 
-      // TODO Exact and near duplicates detection - Prabhu
+      // Exact and near duplicates detection
       val nonDuplicate = DuplicateFinder.analyse(relevantContent)
 
       if(nonDuplicate)
@@ -114,16 +116,28 @@ class WebCrawlerManager(val baseUrl: String) {
     result
   }
 
-
-
+  /**
+   * An Object which composes of methods to compute near and exact duplicates
+   */
   object DuplicateFinder {
 
+    /**
+     * A method that analyses the relevant content by converting it into a fingerprint and finds
+     * whether the current content is exact or near duplicate of some fingerprint already
+     * present in the frontier.
+     * @param relevantContent The content seen by the user when he opens the html in a browser
+     * @return the status (boolean) of the content that should be added into the frontier,
+     *         true - not a exact duplicate and can be added
+     *         false - duplicate and should not be added
+     */
     def analyse(relevantContent : String): Boolean =
     {
       var Addflag = true
 
       val tokens = relevantContent.split("[ .,;:?!\t\n\r\f]+").toList
+      //Shingles with q = 3
       val shingles = tokens.sliding(3)
+      //A 32 bit hash is used
       val hashes = shingles.map(_.hashCode())
       def binary(value: Int) : String = String.format("%32s", Integer.toBinaryString(value))
         .replace(' ', '0')
@@ -134,6 +148,8 @@ class WebCrawlerManager(val baseUrl: String) {
       hmap.foreach(s => {sum=add(sum,s); length = length+1})
       val finprint = sum.map(x => if(length/2 <= x) 1 else 0).toString()
 
+      // Hamming distance = 0 => Exact Duplicate
+      // Hamming distance <=2 => Near Duplicate (if not exact)
       breakable {
         for (x <- fingerprints) {
           val dis = hammingDistance(x, finprint)
@@ -156,12 +172,24 @@ class WebCrawlerManager(val baseUrl: String) {
       return Addflag
     }
 
+    /**
+     * A method that takes strings 'sum' and 's' and compute sum of the contents in order
+     * @param sum An integer list with the sums
+     * @param s A string containing either 1 or 0
+     * @return A list of integers with the computed sum
+     */
     def add(sum:List[Int], s: String): List[Int] = {
       val charlist = s.toList
       return for( (x,y) <- (sum zip charlist)) yield if(y =='0') x else x+1
 
     }
 
+    /**
+     * The method Computes Hamming Distance between two strings composed of binary values
+     * @param x
+     * @param y
+     * @return the hamming distance of strings x and y
+     */
     def hammingDistance(x: String, y:String): Int =
     {
       val xChar = x.toList
