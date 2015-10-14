@@ -1,12 +1,13 @@
 package webcrawler
 
 import scala.util.matching.Regex
+import java.net.URL
 import io.Source
 import scala.collection.mutable.{Map => MutMap}
 
 object LinkHelper {
   // A regular expression that matches links in an HTML document
-  private val linkRegex : Regex = """href=\"[A-Za-z0-9-_]+.[A-Za-z0-9-_:%&?/.=]+\"""".r
+  private val linkRegex : Regex = """href=\"[.A-Za-z0-9-_]+.[A-Za-z0-9-_:%&?/.=]+\"""".r
   // A regular expression that matches URLs
   private val urlRegex = """(http|ftp|https)://(.*)\.([A-Za-z0-9-_:%&?/.=]+)""".r
 
@@ -65,14 +66,24 @@ object LinkHelper {
           processedLink = processedLink.substring(0, processedLink.lastIndexOf('#'))
         if(processedLink.lastIndexOf('?') != -1)
           processedLink = processedLink.substring(0, processedLink.lastIndexOf('?'))
-        if(!processedLink.endsWith(".css") && !processedLink.endsWith(".ico") && !processedLink.endsWith(".jpg")
-            && !processedLink.endsWith(".png")) {
+        if(processedLink.endsWith(".html")) {
           if(processedLink.startsWith("http://") || processedLink.startsWith("https://")) {
             if(!linkMap.exists(_._1 == processedLink) && processedLink.contains(domainLimit))
               linkMap += processedLink -> false
           } else {
+            
+            if(processedLink.startsWith(".."))
+            {
+              processedLink = new URL(new URL(domain), processedLink).toString()
+              if(!linkMap.exists(_._1 == processedLink) && processedLink.contains(domainLimit))
+                linkMap += processedLink -> false
+              
+            }
+            else
+            {
             if(!linkMap.exists(_._1 == (domain + processedLink)))
               linkMap += (domain + processedLink) -> false
+            }
           }
         }
       }
