@@ -6,6 +6,7 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 
 import scala.util.control.Breaks._
+import scala.util.hashing.MurmurHash3
 
 class WebCrawlerManager(val baseUrl: String) {
   // A map that contains all of the links on the frontier
@@ -85,7 +86,8 @@ class WebCrawlerManager(val baseUrl: String) {
       section.select("nav").remove()
       section.select("aside").remove()
 
-      val relevantContent = section.text()
+
+      val relevantContent = doc.body().text()
 
       // Exact and near duplicates detection
       val nonDuplicate = DuplicateFinder.analyse(relevantContent)
@@ -138,7 +140,7 @@ class WebCrawlerManager(val baseUrl: String) {
       //Shingles with q = 3
       val shingles = tokens.sliding(3)
       //A 32 bit hash is used
-      val hashes = shingles.map(_.hashCode())
+      val hashes = shingles.map(s => MurmurHash3.stringHash(s.mkString))
       def binary(value: Int) : String = String.format("%32s", Integer.toBinaryString(value))
         .replace(' ', '0')
       val hmap = hashes.map(h => binary(h))
@@ -154,10 +156,10 @@ class WebCrawlerManager(val baseUrl: String) {
         for (x <- fingerprints) {
           val dis = hammingDistance(x, finprint)
           if (dis <= 2) {
+            Addflag = false
             if (dis != 0)
               near_dup_counter = near_dup_counter + 1
             else {
-              Addflag = false
               exact_dup_counter = exact_dup_counter + 1
               break
             }
